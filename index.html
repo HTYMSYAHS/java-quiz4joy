@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Java Syntax Recall – Introduction to Programming</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Java Syntax Recall</h1>
+      <p class="subtitle">Active practice for Introduction to Programming<br>Small code blocks • Instant feedback • Based on your course materials</p>
+    </header>
+
+    <div class="controls">
+      <label for="mode">Mode:</label>
+      <select id="mode">
+        <option value="practice">Practice (instant feedback)</option>
+        <option value="test">Test (no feedback until end)</option>
+      </select>
+      <label for="topic">Topic:</label>
+      <select id="topic">
+        <option value="All">All Topics</option>
+        <option value="Basics">Basics & Scanner</option>
+        <option value="Instantiable Classes">Instantiable Classes</option>
+        <option value="Selection">Selection & Validation</option>
+        <option value="Loops">Loops</option>
+        <option value="Strings">Strings & Chars</option>
+        <option value="Arrays">1D Arrays</option>
+        <option value="2D Arrays">2D Arrays</option>
+        <option value="Mixed">Mixed / Full Pattern</option>
+      </select>
+      <button id="startSession">Start Session</button>
+      <button id="resetStats">Reset Stats</button>
+    </div>
+
+    <div class="stats">
+      <span>Session: <strong id="sessionInfo">—</strong></span>
+      <span>Answered: <strong id="answered">0</strong></span>
+      <span>Correct: <strong id="correct">0</strong></span>
+      <span>Accuracy: <strong id="accuracy">0%</strong></span>
+    </div>
+
+    <div id="quiz" class="quiz-card">
+      <div class="topic-badge" id="topicBadge"></div>
+      <p class="prompt" id="prompt"></p>
+      <pre class="code-block" id="codeBlock"></pre>
+      <div class="answer-area">
+        <input type="text" id="answerInput" placeholder="Type the missing part..." autocomplete="off" spellcheck="false">
+        <button id="checkBtn">Check / Next</button>
+      </div>
+      <div id="feedback" class="feedback"></div>
+      <div id="sessionSummary" class="feedback" style="display:none;"></div>
+    </div>
+
+    <footer>
+      <p>Focus on retrieval: cover the answer, try to recall, then check.<br>Designed for repeated short practice sessions.</p>
+    </footer>
+  </div>
+
+  <script src="questions.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
