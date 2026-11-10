@@ -2,64 +2,226 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Java Syntax Recall – Introduction to Programming</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Java Syntax Recall</title>
+  <meta name="description" content="Active-recall quiz, multi-file Java workspace, and guided builds for Introduction to Programming.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect fill='%2312140f' width='64' height='64' rx='12'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-family='Georgia' font-size='28' fill='%23e0b15a'%3E%7B%7D%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,650&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>Java Syntax Recall</h1>
-      <p class="subtitle">Active practice for Introduction to Programming<br>Small code blocks • Instant feedback • Based on your course materials</p>
-    </header>
-
-    <div class="controls">
-      <label for="mode">Mode:</label>
-      <select id="mode">
-        <option value="practice">Practice (instant feedback)</option>
-        <option value="test">Test (no feedback until end)</option>
-      </select>
-      <label for="topic">Topic:</label>
-      <select id="topic">
-        <option value="All">All Topics</option>
-        <option value="Basics">Basics & Scanner</option>
-        <option value="Instantiable Classes">Instantiable Classes</option>
-        <option value="Selection">Selection & Validation</option>
-        <option value="Loops">Loops</option>
-        <option value="Strings">Strings & Chars</option>
-        <option value="Arrays">1D Arrays</option>
-        <option value="2D Arrays">2D Arrays</option>
-        <option value="Mixed">Mixed / Full Pattern</option>
-      </select>
-      <button id="startSession">Start Session</button>
-      <button id="resetStats">Reset Stats</button>
-    </div>
-
-    <div class="stats">
-      <span>Session: <strong id="sessionInfo">—</strong></span>
-      <span>Answered: <strong id="answered">0</strong></span>
-      <span>Correct: <strong id="correct">0</strong></span>
-      <span>Accuracy: <strong id="accuracy">0%</strong></span>
-    </div>
-
-    <div id="quiz" class="quiz-card">
-      <div class="topic-badge" id="topicBadge"></div>
-      <p class="prompt" id="prompt"></p>
-      <pre class="code-block" id="codeBlock"></pre>
-      <div class="answer-area">
-        <input type="text" id="answerInput" placeholder="Type the missing part..." autocomplete="off" spellcheck="false">
-        <button id="checkBtn">Check / Next</button>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">{ }</span>
+      <div>
+        <p class="eyebrow">Introduction to Programming</p>
+        <h1>Java Syntax Recall</h1>
       </div>
-      <div id="feedback" class="feedback"></div>
-      <div id="sessionSummary" class="feedback" style="display:none;"></div>
     </div>
+    <nav class="nav" aria-label="Sections">
+      <button type="button" class="nav-btn" data-view="quiz" aria-current="page">Quiz</button>
+      <button type="button" class="nav-btn" data-view="workspace">Code</button>
+      <button type="button" class="nav-btn" data-view="guided">Guided build</button>
+    </nav>
+    <button type="button" class="primary" id="open-ai">Tutor</button>
+  </header>
 
-    <footer>
-      <p>Focus on retrieval: cover the answer, try to recall, then check.<br>Designed for repeated short practice sessions.</p>
-    </footer>
-  </div>
+  <main id="main">
+    <section id="view-quiz" class="view">
+      <p class="lede">Recall the syntax, then check it. Practice marks each answer at once. Test stays quiet until the end and stops after 15 questions.</p>
+      <div class="controls">
+        <label>Mode
+          <select id="mode">
+            <option value="practice">Practice</option>
+            <option value="test">Test</option>
+          </select>
+        </label>
+        <label>Topic
+          <select id="topic"></select>
+        </label>
+        <label>Length
+          <select id="length">
+            <option value="10">10 questions</option>
+            <option value="15" selected>15 questions</option>
+            <option value="all">All in this topic</option>
+          </select>
+        </label>
+        <button type="button" class="primary" id="start-session">Start session</button>
+        <button type="button" id="reset-stats">Reset stats</button>
+      </div>
+      <div class="stats">
+        <span>Session <strong id="session-info">Ready</strong></span>
+        <span>Answered <strong id="answered">0</strong></span>
+        <span>Correct <strong id="correct">0</strong></span>
+        <span>Accuracy <strong id="accuracy">0%</strong></span>
+      </div>
+      <p id="bank-health" class="health"></p>
 
-  <script src="questions.js"></script>
-  <script src="app.js"></script>
+      <article class="card" id="quiz-card">
+        <div id="quiz-empty">
+          <h2>Start with a short set</h2>
+          <p>The bank covers Scanner, selection and validation, loops, strings, arrays, methods, and instantiable classes. The harder class questions use two files, such as <code>Student.java</code> beside <code>StudentTest.java</code>, and open in the code page.</p>
+        </div>
+        <div id="quiz-active" hidden>
+          <p class="topic-badge" id="topic-badge"></p>
+          <h2 class="prompt" id="prompt"></h2>
+          <div id="snippet-host"></div>
+          <div class="answer-row" id="answer-row">
+            <label class="grow" for="answer-input">Your answer</label>
+            <input id="answer-input" type="text" autocomplete="off" spellcheck="false" placeholder="Type the missing part">
+            <button type="button" class="primary" id="check-btn">Check</button>
+          </div>
+          <div id="workspace-actions" class="answer-row" hidden>
+            <button type="button" class="primary" id="open-task">Open in the code page</button>
+            <button type="button" id="skip-task">Continue</button>
+          </div>
+          <div id="feedback" class="feedback" aria-live="polite"></div>
+          <div id="summary" class="feedback" hidden></div>
+        </div>
+      </article>
+    </section>
+
+    <section id="view-workspace" class="view" hidden>
+      <div class="work-head">
+        <div>
+          <h2>Code page</h2>
+          <p class="muted">One main file and up to five other classes. Run sends them to the Judge0 sandbox, not to this computer.</p>
+        </div>
+        <label>Task
+          <select id="task-select"></select>
+        </label>
+      </div>
+      <div class="work-grid">
+        <div class="editor-column">
+          <div class="tabbar" id="tabbar" role="tablist" aria-label="Java files"></div>
+          <form id="add-class-form" class="add-class">
+            <label for="new-class">New class</label>
+            <input id="new-class" type="text" maxlength="40" placeholder="Student" autocomplete="off" spellcheck="false">
+            <button type="submit">Add class</button>
+            <span id="file-count" class="muted"></span>
+          </form>
+          <div id="editor-host" class="editor-pane"></div>
+        </div>
+        <aside class="side-panel">
+          <div id="task-card" class="task-card" hidden>
+            <h3 id="task-title"></h3>
+            <p id="task-prompt"></p>
+            <p id="task-hint" class="hint" hidden></p>
+            <button type="button" id="task-hint-btn">Hint</button>
+          </div>
+          <label for="stdin">Standard input</label>
+          <textarea id="stdin" rows="3" spellcheck="false" placeholder="Optional text for Scanner"></textarea>
+          <div class="button-row">
+            <button type="button" class="primary" id="run-btn">Run</button>
+            <button type="button" id="check-task-btn" hidden>Check task</button>
+          </div>
+          <p id="run-status" class="muted"></p>
+          <pre id="output" class="output">Run a class to see the compiler and the program output.</pre>
+        </aside>
+      </div>
+    </section>
+
+    <section id="view-guided" class="view" hidden>
+      <div class="guided-grid">
+        <div>
+          <h2>Guided build</h2>
+          <p class="muted">Each step has instructions, a hint, and a check. The last steps of the class builds compile in the sandbox.</p>
+          <div id="guide-list" class="guide-list"></div>
+        </div>
+        <div id="guide-stage" class="card">
+          <div id="guide-idle">
+            <h2>Pick a build</h2>
+            <p>They get longer as they go: a Scanner program, a validated mark, a loop, then two instantiable classes with a separate driver.</p>
+          </div>
+          <div id="guide-active" hidden>
+            <div class="guide-top">
+              <div>
+                <p class="eyebrow" id="guide-level"></p>
+                <h2 id="guide-title"></h2>
+              </div>
+              <button type="button" id="guide-reset">Start this build again</button>
+            </div>
+            <ol id="step-list" class="step-list"></ol>
+            <h3 id="step-title"></h3>
+            <p id="step-instructions"></p>
+            <p id="step-hint" class="hint" hidden></p>
+            <div class="button-row">
+              <button type="button" id="show-hint">Show hint</button>
+              <button type="button" class="primary" id="check-step">Check step</button>
+            </div>
+            <div class="tabbar" id="guide-tabs" role="tablist" aria-label="Guided files"></div>
+            <div id="guide-editor" class="editor-pane"></div>
+            <p id="guide-status" class="muted"></p>
+            <pre id="guide-output" class="output" hidden></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside id="ai-panel" class="ai-panel" hidden aria-label="Tutor">
+    <header>
+      <div>
+        <strong>Tutor</strong>
+        <p id="ai-status" class="muted">Offline hints</p>
+      </div>
+      <div class="button-row">
+        <button type="button" id="ai-undo" hidden>Undo</button>
+        <button type="button" id="ai-settings-open">Settings</button>
+        <button type="button" id="ai-close">Close</button>
+      </div>
+    </header>
+    <div id="ai-log" class="ai-log"></div>
+    <div id="proposal" hidden></div>
+    <div class="ai-chips">
+      <button type="button" data-ai="hint">Hint</button>
+      <button type="button" data-ai="explain">Explain error</button>
+      <button type="button" data-ai="review">Review my code</button>
+      <button type="button" data-ai="reveal">Show answer</button>
+      <button type="button" data-ai="draft">Draft a question</button>
+    </div>
+    <form id="ai-form">
+      <label for="ai-input" class="sr-only">Message</label>
+      <textarea id="ai-input" rows="3" placeholder="Ask about this question, an error, or your class."></textarea>
+      <button type="submit" class="primary" id="ai-send">Send</button>
+    </form>
+    <details>
+      <summary>Validate a draft JSON yourself</summary>
+      <p class="muted">Paste a question the tutor wrote. It is checked for missing names, then compiled in the sandbox. Apply is the only way it joins the bank.</p>
+      <textarea id="draft-json" rows="6" spellcheck="false" placeholder='{"action":"add","question":{...},"test":{"files":[],"expectOutputIncludes":"OK"}}'></textarea>
+      <button type="button" id="draft-validate">Check and test this draft</button>
+    </details>
+  </aside>
+
+  <dialog id="settings-dialog">
+    <form id="settings-form">
+      <h2>Tutor settings</h2>
+      <p>The key is stored only in this browser's localStorage. It is sent to the provider when you ask a question. Nothing in this project file contains a key.</p>
+      <label>Provider
+        <select id="ai-provider"></select>
+      </label>
+      <label>Model
+        <input id="ai-model" type="text" autocomplete="off" spellcheck="false">
+      </label>
+      <label id="base-label">API base URL
+        <input id="ai-base" type="url" autocomplete="off" spellcheck="false">
+      </label>
+      <label>API key
+        <input id="ai-key" type="password" autocomplete="off">
+      </label>
+      <p id="ai-provider-note" class="muted"></p>
+      <div class="button-row">
+        <button type="submit" class="primary">Save in this browser</button>
+        <button type="button" id="ai-clear">Remove key</button>
+        <button type="button" id="settings-close">Close</button>
+      </div>
+      <button type="button" id="restore-bank">Restore the original question bank</button>
+    </form>
+  </dialog>
+
+  <script type="module" src="main.js"></script>
 </body>
 </html>
