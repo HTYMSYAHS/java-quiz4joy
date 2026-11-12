@@ -197,19 +197,29 @@
   </aside>
 
   <dialog id="settings-dialog">
-    <div class="settings-content">
+    <form id="settings-form">
       <h2>Tutor settings</h2>
-      <p>The AI Tutor is directly integrated with Google Gemini to provide interactive hints, code explanations, reviews, and test-validated question drafting.</p>
-      <div class="tutor-info-box">
-        <p><strong>Provider:</strong> Google Gemini</p>
-        <p><strong>Model:</strong> <code>gemini-3.8-flash</code></p>
-        <p><strong>Status:</strong> <span id="tutor-dialog-status">Direct server-side integration</span></p>
-      </div>
+      <p>The key is stored only in this browser's localStorage. It is sent to the provider when you ask a question. Nothing in this project file contains a key.</p>
+      <label>Provider
+        <select id="ai-provider"></select>
+      </label>
+      <label>Model
+        <input id="ai-model" type="text" autocomplete="off" spellcheck="false">
+      </label>
+      <label id="base-label">API base URL
+        <input id="ai-base" type="url" autocomplete="off" spellcheck="false">
+      </label>
+      <label>API key
+        <input id="ai-key" type="password" autocomplete="off">
+      </label>
+      <p id="ai-provider-note" class="muted"></p>
       <div class="button-row">
-        <button type="button" id="restore-bank">Restore original question bank</button>
-        <button type="button" class="primary" id="settings-close">Close</button>
+        <button type="submit" class="primary">Save in this browser</button>
+        <button type="button" id="ai-clear">Remove key</button>
+        <button type="button" id="settings-close">Close</button>
       </div>
-    </div>
+      <button type="button" id="restore-bank">Restore the original question bank</button>
+    </form>
   </dialog>
 
   <script type="module" src="main.js"></script>

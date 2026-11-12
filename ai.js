@@ -5,6 +5,26 @@ import { createEditor } from "./editor.js";
 import { escapeHtml } from "./util.js";
 import { ui } from "./state.js";
 
+const SETTINGS_KEY = "javaRecall.ai";
+
+const PROVIDERS = [
+  {
+    id: "gemini",
+    label: "Google Gemini",
+    defaultModel: "gemini-3.8-flash",
+    needsBaseUrl: false,
+    note: "A key from Google AI Studio works from the browser. It is sent only to Google, as the request key.",
+  },
+  {
+    id: "openai",
+    label: "OpenAI-compatible",
+    defaultModel: "gpt-4o-mini",
+    defaultBaseUrl: "https://api.openai.com/v1",
+    needsBaseUrl: true,
+    note: "Any chat-completions URL that allows browser calls. OpenAI and OpenRouter both answer from the browser. If a host blocks the page, set the base URL to https://openrouter.ai/api/v1.",
+  },
+];
+
 const SYSTEM = `You are a lab tutor for a first-year Introduction to Programming course in Java.
 Topics: Scanner, selection and validation, loops, strings and characters, one- and two-dimensional arrays, methods, and instantiable classes.
 Instantiable classes use private fields, constructors with this, setters, a compute method, getters, toString, and a separate driver class. The usual order is set, then compute, then get.
@@ -36,21 +56,70 @@ When asked to draft or edit a question, reply with one json object and no other 
 Topic must be one of: Basics, Selection, Loops, Strings, Arrays, 2D Arrays, Methods, Instantiable Classes, Mixed.
 The blank is eight underscores. Every user-defined name in the answer must already appear in the prompt or the code. Java keywords and standard-library names such as nextInt, println, String, length, and parseInt do not have to be repeated. Do not invent a field or method name in the answer. The test program must compile and print the expected text. The app will reject the draft otherwise.`;
 
-async function tutorComplete({ messages, systemInstruction }) {
-  const response = await fetch("/api/tutor", {
+function loadSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "null");
+    if (saved && typeof saved === "object") {
+      // Google retired gemini-2.5-flash for new keys; drop it so the current default is used.
+      if (typeof saved.model === "string") {
+        saved.model = saved.model.trim().replace(/^models\//, "");
+        if (/^gemini-(1\.|2\.)/.test(saved.model)) saved.model = "";
+      }
+      return saved;
+    }
+  } catch { /* keep the defaults */ }
+  return {};
+}
+
+function saveSettings(settings) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
+async function geminiComplete({ apiKey, model, messages }) {
+  const system = messages.filter((message) => message.role === "system").map((message) => message.content).join("\n\n");
+  const contents = messages.filter((message) => message.role !== "system").map((message) => ({
+    role: message.role === "assistant" ? "model" : "user",
+    parts: [{ text: message.content }],
+  }));
+  model = String(model || "").trim().replace(/^models\//, "");
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, systemInstruction }),
+    body: JSON.stringify({
+      systemInstruction: system ? { parts: [{ text: system }] } : undefined,
+      contents,
+      generationConfig: {
+        temperature: 0.3,
+        // Gemini 3+ models think before answering; keep it short so replies arrive quickly.
+        ...(/^gemini-([3-9]|\d{2,})/.test(model) ? { thinkingConfig: { thinkingLevel: "LOW" } } : {}),
+      },
+    }),
     signal: AbortSignal.timeout(90000),
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.error || `Tutor API returned ${response.status}`);
-  }
-  if (!data.reply || !data.reply.trim()) {
-    throw new Error("Tutor returned an empty response.");
-  }
-  return data.reply;
+  if (!response.ok) throw new Error(data.error?.message || `Gemini returned ${response.status}`);
+  const text = (data.candidates?.[0]?.content?.parts || []).map((part) => part.text || "").join("");
+  if (!text.trim()) throw new Error(data.candidates?.[0]?.finishReason || "Gemini returned an empty reply.");
+  return text;
+}
+
+async function openaiComplete({ apiKey, model, baseUrl, messages }) {
+  const root = (baseUrl || "https://api.openai.com/v1").replace(/\/$/, "");
+  const response = await fetch(`${root}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ model, temperature: 0.3, messages }),
+    signal: AbortSignal.timeout(90000),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error?.message || `The provider returned ${response.status}`);
+  const text = data.choices?.[0]?.message?.content || "";
+  if (!text.trim()) throw new Error("The provider returned an empty reply.");
+  return text;
 }
 
 function extractJson(text) {
@@ -112,30 +181,35 @@ export function createAssistant({ getBank, onBankChange, getHint }) {
   const log = document.getElementById("ai-log");
   const status = document.getElementById("ai-status");
   const proposalEl = document.getElementById("proposal");
+  const providerSelect = document.getElementById("ai-provider");
   const dialog = document.getElementById("settings-dialog");
+  let settings = { provider: "gemini", model: "", apiKey: "", baseUrl: "", ...loadSettings() };
   let history = [];
   let proposal = null;
   let previewEditor = null;
   let busy = false;
 
-  async function checkTutorStatus() {
-    try {
-      const res = await fetch("/api/tutor/status");
-      const data = await res.json();
-      if (data.configured) {
-        status.textContent = "Gemini 3.8 Flash · Online";
-        const dialogStatus = document.getElementById("tutor-dialog-status");
-        if (dialogStatus) dialogStatus.textContent = "Direct integration active (Gemini 3.8 Flash)";
-      } else {
-        status.textContent = "Gemini 3.8 Flash · Connected";
-        const dialogStatus = document.getElementById("tutor-dialog-status");
-        if (dialogStatus) dialogStatus.textContent = "Direct server-side integration";
-      }
-    } catch {
-      status.textContent = "Gemini 3.8 Flash";
-    }
+  providerSelect.innerHTML = PROVIDERS.map((provider) => `<option value="${provider.id}">${provider.label}</option>`).join("");
+
+  function provider() {
+    return PROVIDERS.find((item) => item.id === settings.provider) || PROVIDERS[0];
+  }
+
+  function refreshStatus() {
+    const hasKey = Boolean(settings.apiKey);
+    status.textContent = hasKey ? `${provider().label} · ${settings.model || provider().defaultModel}` : "Offline hints — no API key saved";
     const undo = document.getElementById("ai-undo");
-    if (undo) undo.hidden = undoCount() === 0;
+    undo.hidden = undoCount() === 0;
+  }
+
+  function syncForm() {
+    providerSelect.value = settings.provider || "gemini";
+    const current = provider();
+    document.getElementById("ai-model").value = settings.model || current.defaultModel;
+    document.getElementById("ai-base").value = settings.baseUrl || current.defaultBaseUrl || "";
+    document.getElementById("ai-key").value = settings.apiKey || "";
+    document.getElementById("base-label").hidden = !current.needsBaseUrl;
+    document.getElementById("ai-provider-note").textContent = current.note;
   }
 
   function addBubble(role, text) {
@@ -186,6 +260,7 @@ export function createAssistant({ getBank, onBankChange, getHint }) {
         <button type="button" class="primary" id="apply-draft" ${ready ? "" : "disabled"}>Apply</button>
         <button type="button" id="discard-draft">Discard</button>
       </div>`;
+    proposalEl.querySelector("h3").insertAdjacentHTML("afterend", "");
     const paragraphs = proposalEl.querySelectorAll("p");
     paragraphs[1].textContent = `${existing ? "Replaces" : "Adds"} ${question.id} · ${question.topic}`;
     const codeHost = proposalEl.querySelector("#proposal-code");
@@ -211,7 +286,7 @@ export function createAssistant({ getBank, onBankChange, getHint }) {
       onBankChange();
       addBubble("assistant", `${result.replaced ? "Replaced" : "Added"} ${proposal.question.id}. Use Undo to put the bank back.`);
       clearPreview();
-      checkTutorStatus();
+      refreshStatus();
     });
     proposalEl.querySelector("#discard-draft").addEventListener("click", () => {
       clearPreview();
@@ -271,7 +346,7 @@ export function createAssistant({ getBank, onBankChange, getHint }) {
     if (kind === "review") {
       const notes = preflightJava(ui.files || []);
       const head = notes.length ? notes.join(" ") : "The files are named in a way the sandbox can compile.";
-      return `${head}`;
+      return `${head} Add an API key in Settings for a tutor's review of the logic.`;
     }
     if (kind === "reveal") {
       const question = ui.question;
@@ -279,7 +354,7 @@ export function createAssistant({ getBank, onBankChange, getHint }) {
       if (question.type === "workspace") return question.explanation;
       return `Answer: ${question.answer}\n${question.explanation}`;
     }
-    return "You can paste JSON under “Validate a draft” to test a custom question.";
+    return "Drafting a question needs an API key. You can still paste JSON under “Validate a draft” and the same missing-context check will run.";
   }
 
   async function ask(text, { kind = "chat", expectDraft = false } = {}) {
@@ -287,6 +362,12 @@ export function createAssistant({ getBank, onBankChange, getHint }) {
     if (!trimmed || busy) return;
     addBubble("user", trimmed);
     history.push({ role: "user", content: trimmed });
+    if (!settings.apiKey) {
+      const reply = offlineReply(kind);
+      history.push({ role: "assistant", content: reply });
+      addBubble("assistant", reply);
+      return;
+    }
     busy = true;
     document.getElementById("ai-send").disabled = true;
     status.textContent = "Thinking…";
@@ -294,10 +375,19 @@ export function createAssistant({ getBank, onBankChange, getHint }) {
       let prior = history.slice(-8, -1);
       while (prior.length && prior[0].role !== "user") prior = prior.slice(1);
       const messages = [
+        { role: "system", content: SYSTEM },
         ...prior,
         { role: "user", content: `${contextBlock(getBank)}\n\n${trimmed}` },
       ];
-      const reply = await tutorComplete({ messages, systemInstruction: SYSTEM });
+      const current = provider();
+      const reply = current.id === "gemini"
+        ? await geminiComplete({ apiKey: settings.apiKey, model: settings.model || current.defaultModel, messages })
+        : await openaiComplete({
+          apiKey: settings.apiKey,
+          model: settings.model || current.defaultModel,
+          baseUrl: settings.baseUrl || current.defaultBaseUrl,
+          messages,
+        });
       history.push({ role: "assistant", content: reply });
       addBubble("assistant", reply);
       if (expectDraft) {
@@ -307,20 +397,20 @@ export function createAssistant({ getBank, onBankChange, getHint }) {
       }
     } catch (error) {
       const fallback = offlineReply(kind);
-      addBubble("assistant", `The AI tutor could not complete the request (${error.message}). Offline note:\n${fallback}`);
+      addBubble("assistant", `The provider could not answer (${error.message}). Offline note:\n${fallback}`);
     } finally {
       busy = false;
       document.getElementById("ai-send").disabled = false;
-      checkTutorStatus();
+      refreshStatus();
     }
   }
 
   function openPanel() {
     panel.hidden = false;
     if (!log.childElementCount) {
-      addBubble("assistant", "I am your Java lab tutor, directly integrated with Gemini 3.8 Flash. I can provide hints on your active question, explain compiler and runtime messages, review your classes in the code page, or draft new practice questions. Tap a quick action below or type a question!");
+      addBubble("assistant", "I can hint the question you are on, explain a compiler message, or review the classes in the code page. Without an API key I stay on the built-in hints and the missing-context check. A drafted question is not added until you press Apply.");
     }
-    checkTutorStatus();
+    refreshStatus();
   }
 
   document.getElementById("open-ai").addEventListener("click", openPanel);
@@ -342,7 +432,7 @@ export function createAssistant({ getBank, onBankChange, getHint }) {
         reveal: "Show the answer.",
         draft: "Draft one new fill-in question on the same topic as the current page. Include the test program.",
       };
-      if (kind === "reveal") {
+      if (kind === "reveal" || (!settings.apiKey && kind !== "draft")) {
         addBubble("user", prompts[kind]);
         addBubble("assistant", offlineReply(kind));
         return;
@@ -362,23 +452,50 @@ export function createAssistant({ getBank, onBankChange, getHint }) {
     const previous = undoBank();
     if (!previous) return;
     onBankChange();
-    checkTutorStatus();
+    refreshStatus();
     addBubble("assistant", "Restored the previous question bank.");
     clearPreview();
   });
   document.getElementById("ai-settings-open").addEventListener("click", () => {
+    syncForm();
     dialog.showModal();
+  });
+  providerSelect.addEventListener("change", () => {
+    settings.provider = providerSelect.value;
+    const current = provider();
+    if (!document.getElementById("ai-model").value) document.getElementById("ai-model").value = current.defaultModel;
+    document.getElementById("base-label").hidden = !current.needsBaseUrl;
+    document.getElementById("ai-provider-note").textContent = current.note;
+    if (!settings.baseUrl && current.defaultBaseUrl) document.getElementById("ai-base").value = current.defaultBaseUrl;
+  });
+  document.getElementById("settings-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    settings = {
+      provider: providerSelect.value,
+      model: document.getElementById("ai-model").value.trim(),
+      baseUrl: document.getElementById("ai-base").value.trim(),
+      apiKey: document.getElementById("ai-key").value.trim(),
+    };
+    saveSettings(settings);
+    refreshStatus();
+    dialog.close();
+    addBubble("assistant", settings.apiKey ? "Key saved in this browser only." : "No key stored. Offline hints stay available.");
+  });
+  document.getElementById("ai-clear").addEventListener("click", () => {
+    settings.apiKey = "";
+    saveSettings(settings);
+    document.getElementById("ai-key").value = "";
+    refreshStatus();
   });
   document.getElementById("settings-close").addEventListener("click", () => dialog.close());
   document.getElementById("restore-bank").addEventListener("click", () => {
     if (!confirm("Replace the saved bank with the original questions? You can undo this.")) return;
     restoreBuiltin();
     onBankChange();
-    checkTutorStatus();
-    dialog.close();
+    refreshStatus();
     addBubble("assistant", "The original bank is back. Undo will return the edited one.");
   });
 
-  checkTutorStatus();
-  return { refreshStatus: checkTutorStatus, openPanel };
+  refreshStatus();
+  return { refreshStatus, openPanel };
 }
