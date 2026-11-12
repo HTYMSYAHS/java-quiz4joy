@@ -1,13 +1,13 @@
-import { QUESTIONS } from "../questions.js";
-import { GUIDES } from "../guides.js";
+import { QUESTIONS } from "./questions.js";
+import { GUIDES } from "./guides.js";
 import { GUIDE_SOLUTIONS } from "./guide-solutions.js";
 import {
   checkAll,
   checkQuestion,
   topicCounts,
   TOPICS,
-} from "../question-check.js";
-import { evaluateRules } from "../guide-check.js";
+} from "./question-check.js";
+import { evaluateRules } from "./guide-check.js";
 
 const problems = checkAll(QUESTIONS);
 const counts = topicCounts(QUESTIONS);

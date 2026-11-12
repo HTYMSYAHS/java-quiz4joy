@@ -1,0 +1,8 @@
+{
+  "name": "Java Syntax Recall",
+  "description": "Active-recall quiz, multi-file Java workspace, and guided builds for Introduction to Programming.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

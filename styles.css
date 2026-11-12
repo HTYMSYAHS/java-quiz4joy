@@ -249,6 +249,15 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
 dialog label { margin: 0.55rem 0; }
 dialog label input, dialog label select { width: 100%; }
 #restore-bank { margin-top: 0.8rem; }
+.tutor-info-box {
+  background: var(--sink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  margin: 0.8rem 0;
+}
+.tutor-info-box p { margin: 0.25rem 0; font-size: 0.88rem; }
+.tutor-info-box code { font-family: var(--mono); color: var(--accent); }
 
 @media (max-width: 900px) {
   .work-grid, .guided-grid { grid-template-columns: 1fr; }
