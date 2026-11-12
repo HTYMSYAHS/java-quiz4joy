@@ -11,7 +11,7 @@ const PROVIDERS = [
   {
     id: "gemini",
     label: "Google Gemini",
-    defaultModel: "gemini-2.5-flash",
+    defaultModel: "gemini-3.8-flash",
     needsBaseUrl: false,
     note: "A key from Google AI Studio works from the browser. It is sent only to Google, as the request key.",
   },
@@ -59,7 +59,11 @@ The blank is eight underscores. Every user-defined name in the answer must alrea
 function loadSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "null");
-    if (saved && typeof saved === "object") return saved;
+    if (saved && typeof saved === "object") {
+      // Google retired gemini-2.5-flash for new keys; drop it so the current default is used.
+      if (saved.model === "gemini-2.5-flash") saved.model = "";
+      return saved;
+    }
   } catch { /* keep the defaults */ }
   return {};
 }
